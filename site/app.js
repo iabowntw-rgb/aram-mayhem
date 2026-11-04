@@ -276,7 +276,6 @@
 
   async function showChamp(key) {
     state.current = key;
-    if (state.pinsFor !== key) { state.pins = []; state.pinsFor = key; } // 換英雄時清空比較槽
     settings.recent = [key, ...settings.recent.filter(k => k !== key)].slice(0, 12);
     save();
     renderQuick();
@@ -389,9 +388,8 @@
         <input type="search" id="augQ" placeholder="篩選符文…">
         <label><input type="checkbox" id="hideRare" ${settings.hideRare ? "checked" : ""}>隱藏沒人選的</label>
       </div>
-      <div class="tray" id="tray"></div>
       <div class="panel-body" id="augList"></div>
-      <div class="note">表現分數為 OP.GG 自訂指標，越高越好；選用率越低，數字越不可靠。點符文可加入上方比較。</div>`;
+      <div class="note">表現分數為 OP.GG 自訂指標，越高越好；選用率越低，數字越不可靠。</div>`;
     panel.querySelectorAll(".seg").forEach(s => s.addEventListener("click", e => {
       const b = e.target.closest("button"); if (!b) return;
       const name = s.dataset.set;
@@ -402,75 +400,6 @@
     }));
     $("#hideRare").onchange = e => { settings.hideRare = e.target.checked; save(); drawList(); };
     $("#augQ").oninput = drawList;
-
-    // ---- 比較槽：遊戲中跳出的幾個符文並排比較
-    const all = c.augments.map(a => ({ ...a, info: state.augs[a.id] })).filter(a => a.info);
-    const ranked = all.filter(a => a.pop > 0);
-    const perfRank = new Map([...ranked].sort((a, b) => b.perf - a.perf).map((a, i) => [a.id, i + 1]));
-    const popRank = new Map([...ranked].sort((a, b) => b.pop - a.pop).map((a, i) => [a.id, i + 1]));
-    const MAX_PINS = 4;
-    const togglePin = id => {
-      const i = state.pins.indexOf(id);
-      if (i >= 0) state.pins.splice(i, 1);
-      else { state.pins.push(id); if (state.pins.length > MAX_PINS) state.pins.shift(); }
-      drawTray(); drawList();
-    };
-    const findAug = q => {
-      q = q.trim();
-      if (!q) return [];
-      const score = a => a.info.name === q ? 3 : a.info.name.startsWith(q) ? 2 : a.info.name.includes(q) ? 1 : 0;
-      return all.filter(a => score(a) > 0).sort((a, b) => score(b) - score(a) || b.pop - a.pop).slice(0, 6);
-    };
-
-    function drawTray() {
-      const tray = $("#tray");
-      const pins = state.pins.map(id => all.find(a => a.id === id)).filter(Boolean);
-      const reliable = pins.filter(a => a.pop >= 0.5);
-      const best = (reliable.length ? reliable : pins).reduce((m, a) => (!m || a.perf > m.perf ? a : m), null);
-      tray.innerHTML = `
-        <div class="tray-head">
-          <b>比較</b>
-          <input type="search" id="pinQ" placeholder="輸入遊戲中出現的符文，Enter 加入" autocomplete="off">
-          ${pins.length ? `<button class="btn small" id="pinClear">清除</button>` : ""}
-        </div>
-        <div class="pin-matches" id="pinMatches"></div>
-        ${pins.length ? `<div class="tray-cards">${pins.map(a => `
-          <div class="pcard r${a.info.rarity} ${pins.length > 1 && a === best ? "best" : ""}" data-id="${a.id}" title="點一下移除">
-            ${pins.length > 1 && a === best ? `<span class="badge">最佳</span>` : ""}
-            <img src="${esc(a.info.icon)}" alt="">
-            <div class="pname">${esc(a.info.name)}</div>
-            <div class="pstat">表現 <b>${a.perf.toFixed(1)}</b> <small>${perfRank.has(a.id) ? `第 ${perfRank.get(a.id)}/${ranked.length}` : "—"}</small></div>
-            <div class="pstat">選用 <b>${pct(a.pop)}</b> <small>${popRank.has(a.id) ? `第 ${popRank.get(a.id)}` : "—"}</small></div>
-            ${a.pop < 0.5 ? `<div class="pwarn">樣本少</div>` : ""}
-          </div>`).join("")}</div>`
-        : `<div class="tray-hint">遊戲中選強化符文時，把出現的幾個加進來並排比較（最多 ${MAX_PINS} 個）</div>`}`;
-      const q = $("#pinQ");
-      const drawMatches = () => {
-        $("#pinMatches").innerHTML = findAug(q.value).map(a =>
-          `<button class="chip" data-id="${a.id}">${esc(a.info.name)}</button>`).join("");
-      };
-      q.oninput = drawMatches;
-      q.onkeydown = e => {
-        if (e.key === "Enter") {
-          const m = findAug(q.value)[0];
-          if (m && !state.pins.includes(m.id)) { togglePin(m.id); $("#pinQ").focus(); }
-        } else if (e.key === "Escape") { q.value = ""; drawMatches(); }
-      };
-      $("#pinMatches").onclick = e => {
-        const b = e.target.closest(".chip"); if (!b) return;
-        const id = +b.dataset.id;
-        if (!state.pins.includes(id)) togglePin(id);
-        $("#pinQ").focus();
-      };
-      tray.querySelectorAll(".pcard").forEach(el => el.onclick = () => togglePin(+el.dataset.id));
-      const clr = $("#pinClear");
-      if (clr) clr.onclick = () => { state.pins = []; drawTray(); drawList(); };
-    }
-    $("#augList").onclick = e => {
-      const row = e.target.closest(".aug");
-      if (row) togglePin(+row.dataset.id);
-    };
-    drawTray();
 
     function drawList() {
       const q = $("#augQ").value.trim();
@@ -485,8 +414,7 @@
       list.innerHTML = `<div class="aug-grid">${rows.map(a => {
         const desc = settings.descMode === "off" ? "" :
           `<div class="desc">${richText(settings.descMode === "full" ? (a.info.tooltip || a.info.desc) : a.info.desc)}</div>`;
-        const pinned = state.pins.includes(a.id);
-        return `<div class="aug r${a.info.rarity} ${a.pop < 0.5 ? "dim" : ""} ${pinned ? "pinned" : ""}" data-id="${a.id}" title="${pinned ? "從比較移除" : "加入比較"}">
+        return `<div class="aug r${a.info.rarity} ${a.pop < 0.5 ? "dim" : ""}">
           <img src="${esc(a.info.icon)}" alt="" loading="lazy">
           <div class="name"><span class="tier t${a.tier}" title="OP.GG 評級">${a.tier}</span>${esc(a.info.name)}<span class="rar">${RARITY[a.info.rarity] || ""}</span></div>
           <div class="stats"><div>選用 ${pct(a.pop)}</div><div>表現 ${a.perf.toFixed(1)}</div></div>
