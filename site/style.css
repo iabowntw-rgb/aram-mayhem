@@ -31,13 +31,27 @@ img { display: block; }
 button, input, select { font: inherit; color: inherit; }
 
 /* ---------------- 頂部列 ---------------- */
-.topbar {
+.topbar { background: var(--panel); border-bottom: 1px solid var(--line); }
+.bar {
   display: flex; align-items: center; gap: 14px;
   padding: 10px 16px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--line);
   flex-wrap: wrap;
 }
+/* 寬度與對齊：依主螢幕位置貼齊左或右 */
+.bar, .champ, .home { width: 100%; max-width: var(--w, 1880px); margin-left: auto; margin-right: auto; }
+body[data-side="left"] :is(.bar, .champ, .home) { margin-left: 0; }
+body[data-side="right"] :is(.bar, .champ, .home) { margin-right: 0; }
+
+.gear-wrap { position: relative; }
+.gear-panel {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; width: 300px;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 10px 30px rgba(0,0,0,.55); padding: 12px; display: flex; flex-direction: column; gap: 12px;
+}
+.gear-panel[hidden] { display: none; }
+.opt-label { font-size: 13px; margin-bottom: 5px; }
+.opt-hint { color: var(--faint); font-size: 12px; margin-top: 4px; }
+.btn.small { padding: 2px 8px; font-size: 12px; }
 .brand { color: var(--gold); font-weight: 700; font-size: 17px; text-decoration: none; white-space: nowrap; }
 .search-wrap { position: relative; flex: 0 1 420px; min-width: 220px; }
 #search {
@@ -117,14 +131,22 @@ main { flex: 1; min-height: 0; }
 .btn.tog:disabled { cursor: not-allowed; opacity: .75; }
 
 .cols {
-  flex: 1; min-height: 0; width: 100%; max-width: 1880px; margin: 0 auto;
+  flex: 1; min-height: 0; width: 100%;
   display: grid; gap: 12px; padding: 12px 16px;
   grid-template-columns: var(--cols);
 }
+/* 強化符文：區塊夠寬時自動改成多欄卡片，避免右側大片空白 */
+#augList { container-type: inline-size; }
+@container (min-width: 640px) {
+  .aug-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
+  .aug-grid .aug {
+    border: 1px solid #262b37; border-radius: 6px; background: var(--panel-2);
+    padding: 8px 10px; align-content: start;
+  }
+  .aug-grid .aug:last-child { border-bottom: 1px solid #262b37; }
+  .aug-grid .aug.pinned { border-color: var(--accent); }
+}
 /* 只開一個區塊：改用適合寬畫面的排法 */
-.solo-aug #augList { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 8px; align-content: start; }
-.solo-aug .aug { border: 1px solid #262b37; border-radius: 6px; background: var(--panel-2); padding: 8px 10px; align-content: start; }
-.solo-aug .aug:last-child { border-bottom: 1px solid #262b37; }
 .solo-skill .masts { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 12px; padding: 12px; }
 .solo-skill .mast { border: 1px solid #262b37; border-radius: 6px; background: var(--panel-2); padding: 10px 12px; }
 .solo-skill .lv { gap: 3px; font-size: 13px; }
@@ -172,6 +194,47 @@ main { flex: 1; min-height: 0; }
 .aug .stats div:last-child { color: var(--muted); font-size: 12px; }
 .aug .desc { grid-column: 2 / 4; color: #b8bfcd; font-size: 13px; line-height: 1.5; }
 .aug.dim { opacity: .45; }
+.aug { cursor: pointer; position: relative; border-radius: 6px; }
+.aug:hover { background: #1c2130; }
+.aug.pinned { box-shadow: inset 3px 0 0 var(--accent); background: #1b2436; opacity: 1; }
+
+/* 比較槽 */
+.tray { padding: 8px 12px; border-bottom: 1px solid var(--line); background: #141821; }
+.tray-head { display: flex; align-items: center; gap: 8px; }
+.tray-head b { font-size: 13px; color: var(--accent); flex: none; }
+.tray-head input { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; outline: none; }
+.tray-head input:focus { border-color: var(--accent); }
+.pin-matches { display: flex; flex-wrap: wrap; gap: 4px; }
+.pin-matches:not(:empty) { margin-top: 6px; }
+.chip { background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; cursor: pointer; font-size: 12px; }
+.chip:hover { border-color: var(--accent); }
+.tray-hint { color: var(--faint); font-size: 12px; margin-top: 6px; }
+.tray-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-top: 8px; }
+.pcard {
+  position: relative; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; text-align: center;
+}
+.pcard img { width: 40px; height: 40px; border-radius: 6px; border: 2px solid var(--line); }
+.pcard.r1 img { border-color: var(--silver); } .pcard.r4 img { border-color: var(--goldtier); } .pcard.r8 img { border-color: var(--prism); }
+.pcard .pname { font-weight: 600; font-size: 13px; }
+.pcard .pstat { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pcard .pstat b { color: var(--text); }
+.pcard .pwarn { font-size: 11px; color: #ffcc66; }
+.pcard.best { border-color: var(--good); box-shadow: 0 0 0 1px var(--good) inset; }
+.pcard .badge { position: absolute; top: 4px; right: 4px; background: var(--good); color: #0b1a12; font-size: 11px; font-weight: 700; border-radius: 4px; padding: 0 5px; }
+td.lb { color: var(--muted); }
+
+/* 精簡模式 */
+.compact :is(.toolbar, .note, .alt, .panel > h2 small, .aug .desc, .tray-hint) { display: none !important; }
+.compact .aug { padding: 3px 4px; }
+.compact .aug img { width: 30px; height: 30px; }
+.compact .panel > h2 { padding: 5px 10px; font-size: 13px; }
+.compact .panel-body { padding: 4px 10px; }
+.compact td { padding: 2px 6px; }
+.compact .it img { width: 24px; height: 24px; }
+.compact .champ-head { padding: 6px 16px; }
+.compact .champ-head img { width: 36px; height: 36px; }
+.compact .cols { gap: 8px; padding: 8px 12px; }
 .desc .k-keyword, .desc .k-attention, .desc .k-evolve { color: #f0c200; }
 .desc .k-magicdamage { color: #6fb6ff; }
 .desc .k-physicaldamage { color: #ff9f5a; }
@@ -238,6 +301,6 @@ tr.dim td { opacity: .45; }
 @media (max-width: 780px) {
   .cols { padding: 12px; }
   .solo-aug #augList, .solo-skill .masts { grid-template-columns: minmax(0, 1fr); }
-  .topbar { padding: 10px 12px; }
+  .bar { padding: 10px 12px; }
   .meta { display: none; }
 }

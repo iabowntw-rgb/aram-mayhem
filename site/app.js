@@ -15,14 +15,81 @@
     itemSort: "pick",    // pick | win | play
     minGames: 1,
     show: { aug: true, item: true, skill: true },
+    side: "center",      // 主螢幕位置：left（介面靠左）| right（靠右並左右鏡像）| center
+    width: "full",       // narrow | medium | full
+    scale: "m",          // s | m | l
+    compact: false,      // 精簡模式
     favs: [],
     recent: [],
   };
+  const WIDTH_PX = { narrow: 960, medium: 1280, full: 1880 };
+  const SCALE = { s: 0.9, m: 1, l: 1.15 };
   const settings = (() => {
     try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem("mayhem-settings") || "{}") }; }
     catch { return { ...DEFAULTS }; }
   })();
   const save = () => { try { localStorage.setItem("mayhem-settings", JSON.stringify(settings)); } catch {} };
+
+  // ---------------- 顯示設定（主螢幕位置、寬度、字體、精簡）
+  function applyView() {
+    const b = document.body;
+    b.dataset.side = settings.side;
+    b.style.setProperty("--w", `${WIDTH_PX[settings.width] || 1880}px`);
+    b.classList.toggle("compact", !!settings.compact);
+    // 用 zoom 放大縮小整頁；同時把根元素尺寸換算回視窗大小，避免出現捲軸
+    const z = SCALE[settings.scale] || 1;
+    const root = document.documentElement;
+    root.style.zoom = z;
+    root.style.width = z === 1 ? "" : `${window.innerWidth / z}px`;
+    root.style.height = z === 1 ? "" : `${window.innerHeight / z}px`;
+  }
+  // 內容實際可用寬度（CSS 像素），用來決定要排幾欄
+  function contentWidth() {
+    const z = SCALE[settings.scale] || 1;
+    return Math.min(WIDTH_PX[settings.width] || 1880, window.innerWidth / z);
+  }
+  const isNarrow = () => contentWidth() < 1150;
+
+  const VIEW_OPTS = [
+    ["side", "主螢幕在哪一邊", [["left", "左邊"], ["center", "不指定"], ["right", "右邊"]],
+      "介面會貼齊靠近主螢幕的那一側；主螢幕在右邊時欄位順序也會左右對調"],
+    ["width", "介面寬度", [["narrow", "窄"], ["medium", "中"], ["full", "滿版"]], ""],
+    ["scale", "字體大小", [["s", "小"], ["m", "中"], ["l", "大"]], ""],
+    ["compact", "精簡模式", [["false", "關"], ["true", "開"]], "隱藏工具列、說明與附註，只留關鍵數字"],
+  ];
+  function renderGear() {
+    const panel = $("#gearPanel");
+    panel.innerHTML = VIEW_OPTS.map(([k, label, opts, hint]) => `
+      <div class="opt"><div class="opt-label">${label}</div>
+        <span class="seg" data-opt="${k}">${opts.map(([v, l]) =>
+          `<button data-v="${v}" class="${String(settings[k]) === v ? "on" : ""}">${l}</button>`).join("")}</span>
+        ${hint ? `<div class="opt-hint">${hint}</div>` : ""}</div>`).join("");
+    panel.querySelectorAll(".seg").forEach(s => s.addEventListener("click", e => {
+      const btn = e.target.closest("button"); if (!btn) return;
+      const k = s.dataset.opt;
+      settings[k] = k === "compact" ? btn.dataset.v === "true" : btn.dataset.v;
+      save(); applyView(); renderGear(); rerender();
+    }));
+  }
+  function rerender() {
+    if (state.current && state.cache[state.current]) renderChamp(state.cache[state.current]);
+  }
+  $("#gearBtn").addEventListener("click", () => {
+    const p = $("#gearPanel");
+    p.hidden = !p.hidden;
+    $("#gearBtn").setAttribute("aria-expanded", String(!p.hidden));
+    if (!p.hidden) renderGear();
+  });
+  document.addEventListener("mousedown", e => {
+    if (!e.target.closest(".gear-wrap")) { $("#gearPanel").hidden = true; $("#gearBtn").setAttribute("aria-expanded", "false"); }
+  });
+  let lastNarrow = null;
+  window.addEventListener("resize", () => {
+    applyView();
+    const n = isNarrow();
+    if (n !== lastNarrow) { lastNarrow = n; rerender(); }
+  });
+  applyView();
 
   // ---------------- 資料
   const state = { index: null, items: {}, augs: {}, cache: {}, byKey: {}, current: null };
@@ -68,7 +135,17 @@
   // 把 OP.GG 說明裡的遊戲標籤轉成安全的 HTML：只保留文字、換行與上色用的 span
   function richText(src) {
     const tpl = document.createElement("template");
-    tpl.innerHTML = String(src || "").replace(/<br\s*\/?>/gi, "\n");
+    // 去掉 OP.GG 沒有數值的統計行（例如「總治療量：?」），並把連續空行合併
+    const lines = String(src || "").split(/<br\s*\/?>/i)
+      .filter(l => !/[：:]\s*\?\s*$/.test(l.replace(/<[^>]*>/g, "").trim()));
+    const compacted = [];
+    for (const l of lines) {
+      const blank = !l.replace(/<[^>]*>/g, "").trim();
+      if (blank && (!compacted.length || compacted[compacted.length - 1].blank)) continue;
+      compacted.push({ l, blank });
+    }
+    while (compacted.length && compacted[compacted.length - 1].blank) compacted.pop();
+    tpl.innerHTML = compacted.map(x => x.l).join("\n");
     const out = document.createElement("span");
     const walkNode = (node, parent) => {
       for (const n of node.childNodes) {
@@ -199,6 +276,7 @@
 
   async function showChamp(key) {
     state.current = key;
+    if (state.pinsFor !== key) { state.pins = []; state.pinsFor = key; } // 換英雄時清空比較槽
     settings.recent = [key, ...settings.recent.filter(k => k !== key)].slice(0, 12);
     save();
     renderQuick();
@@ -220,7 +298,10 @@
     let show = { ...DEFAULTS.show, ...(settings.show || {}) };
     if (!pickLayout(show)) show = { ...DEFAULTS.show }; // 全關時恢復預設
     const count = SECTIONS.filter(([k]) => show[k]).length;
-    const layout = pickLayout(show);
+    const narrow = isNarrow();
+    lastNarrow = narrow;
+    const layout = pickLayout(show, narrow);
+    if (settings.side === "right") layout.cols.reverse();
     app.innerHTML = `<section class="champ">
       <div class="champ-head">
         <img src="${esc(c.image)}" alt="">
@@ -269,11 +350,13 @@
   };
 
   // 依開啟的區塊決定欄數、比例與每欄放哪些面板
-  function pickLayout(show) {
+  function pickLayout(show, narrow = false) {
     const col = (fr, ...panels) => ({ fr, panels });
     const key = SECTIONS.filter(([k]) => show[k]).map(([k]) => k).join("+");
     switch (key) {
       case "aug+item+skill":
+        // 寬度不夠三欄時改成兩欄：符文一欄，其他全部放另一欄
+        if (narrow) return { cls: "n2", cols: [col(1.1, "aug"), col(1, "core", "items", "skill", "boots", "starters")] };
         return { cls: "n3", cols: [col(1.35, "aug"), col(1, "core", "items"), col(0.9, "skill", "boots", "starters")] };
       case "aug+item":
         return { cls: "n2", cols: [col(1.5, "aug"), col(1, "core", "items", "boots", "starters")] };
@@ -306,8 +389,9 @@
         <input type="search" id="augQ" placeholder="篩選符文…">
         <label><input type="checkbox" id="hideRare" ${settings.hideRare ? "checked" : ""}>隱藏沒人選的</label>
       </div>
+      <div class="tray" id="tray"></div>
       <div class="panel-body" id="augList"></div>
-      <div class="note">表現分數為 OP.GG 自訂指標，越高越好；選用率越低，數字越不可靠。</div>`;
+      <div class="note">表現分數為 OP.GG 自訂指標，越高越好；選用率越低，數字越不可靠。點符文可加入上方比較。</div>`;
     panel.querySelectorAll(".seg").forEach(s => s.addEventListener("click", e => {
       const b = e.target.closest("button"); if (!b) return;
       const name = s.dataset.set;
@@ -319,6 +403,75 @@
     $("#hideRare").onchange = e => { settings.hideRare = e.target.checked; save(); drawList(); };
     $("#augQ").oninput = drawList;
 
+    // ---- 比較槽：遊戲中跳出的幾個符文並排比較
+    const all = c.augments.map(a => ({ ...a, info: state.augs[a.id] })).filter(a => a.info);
+    const ranked = all.filter(a => a.pop > 0);
+    const perfRank = new Map([...ranked].sort((a, b) => b.perf - a.perf).map((a, i) => [a.id, i + 1]));
+    const popRank = new Map([...ranked].sort((a, b) => b.pop - a.pop).map((a, i) => [a.id, i + 1]));
+    const MAX_PINS = 4;
+    const togglePin = id => {
+      const i = state.pins.indexOf(id);
+      if (i >= 0) state.pins.splice(i, 1);
+      else { state.pins.push(id); if (state.pins.length > MAX_PINS) state.pins.shift(); }
+      drawTray(); drawList();
+    };
+    const findAug = q => {
+      q = q.trim();
+      if (!q) return [];
+      const score = a => a.info.name === q ? 3 : a.info.name.startsWith(q) ? 2 : a.info.name.includes(q) ? 1 : 0;
+      return all.filter(a => score(a) > 0).sort((a, b) => score(b) - score(a) || b.pop - a.pop).slice(0, 6);
+    };
+
+    function drawTray() {
+      const tray = $("#tray");
+      const pins = state.pins.map(id => all.find(a => a.id === id)).filter(Boolean);
+      const reliable = pins.filter(a => a.pop >= 0.5);
+      const best = (reliable.length ? reliable : pins).reduce((m, a) => (!m || a.perf > m.perf ? a : m), null);
+      tray.innerHTML = `
+        <div class="tray-head">
+          <b>比較</b>
+          <input type="search" id="pinQ" placeholder="輸入遊戲中出現的符文，Enter 加入" autocomplete="off">
+          ${pins.length ? `<button class="btn small" id="pinClear">清除</button>` : ""}
+        </div>
+        <div class="pin-matches" id="pinMatches"></div>
+        ${pins.length ? `<div class="tray-cards">${pins.map(a => `
+          <div class="pcard r${a.info.rarity} ${pins.length > 1 && a === best ? "best" : ""}" data-id="${a.id}" title="點一下移除">
+            ${pins.length > 1 && a === best ? `<span class="badge">最佳</span>` : ""}
+            <img src="${esc(a.info.icon)}" alt="">
+            <div class="pname">${esc(a.info.name)}</div>
+            <div class="pstat">表現 <b>${a.perf.toFixed(1)}</b> <small>${perfRank.has(a.id) ? `第 ${perfRank.get(a.id)}/${ranked.length}` : "—"}</small></div>
+            <div class="pstat">選用 <b>${pct(a.pop)}</b> <small>${popRank.has(a.id) ? `第 ${popRank.get(a.id)}` : "—"}</small></div>
+            ${a.pop < 0.5 ? `<div class="pwarn">樣本少</div>` : ""}
+          </div>`).join("")}</div>`
+        : `<div class="tray-hint">遊戲中選強化符文時，把出現的幾個加進來並排比較（最多 ${MAX_PINS} 個）</div>`}`;
+      const q = $("#pinQ");
+      const drawMatches = () => {
+        $("#pinMatches").innerHTML = findAug(q.value).map(a =>
+          `<button class="chip" data-id="${a.id}">${esc(a.info.name)}</button>`).join("");
+      };
+      q.oninput = drawMatches;
+      q.onkeydown = e => {
+        if (e.key === "Enter") {
+          const m = findAug(q.value)[0];
+          if (m && !state.pins.includes(m.id)) { togglePin(m.id); $("#pinQ").focus(); }
+        } else if (e.key === "Escape") { q.value = ""; drawMatches(); }
+      };
+      $("#pinMatches").onclick = e => {
+        const b = e.target.closest(".chip"); if (!b) return;
+        const id = +b.dataset.id;
+        if (!state.pins.includes(id)) togglePin(id);
+        $("#pinQ").focus();
+      };
+      tray.querySelectorAll(".pcard").forEach(el => el.onclick = () => togglePin(+el.dataset.id));
+      const clr = $("#pinClear");
+      if (clr) clr.onclick = () => { state.pins = []; drawTray(); drawList(); };
+    }
+    $("#augList").onclick = e => {
+      const row = e.target.closest(".aug");
+      if (row) togglePin(+row.dataset.id);
+    };
+    drawTray();
+
     function drawList() {
       const q = $("#augQ").value.trim();
       let rows = c.augments.map(a => ({ ...a, info: state.augs[a.id] })).filter(a => a.info);
@@ -329,15 +482,16 @@
       else if (settings.augSort === "perf") rows.sort((a, b) => b.perf - a.perf);
       const list = $("#augList");
       if (!rows.length) { list.innerHTML = `<div class="empty">沒有符合的強化符文</div>`; return; }
-      list.innerHTML = rows.map(a => {
+      list.innerHTML = `<div class="aug-grid">${rows.map(a => {
         const desc = settings.descMode === "off" ? "" :
           `<div class="desc">${richText(settings.descMode === "full" ? (a.info.tooltip || a.info.desc) : a.info.desc)}</div>`;
-        return `<div class="aug r${a.info.rarity} ${a.pop < 0.5 ? "dim" : ""}">
+        const pinned = state.pins.includes(a.id);
+        return `<div class="aug r${a.info.rarity} ${a.pop < 0.5 ? "dim" : ""} ${pinned ? "pinned" : ""}" data-id="${a.id}" title="${pinned ? "從比較移除" : "加入比較"}">
           <img src="${esc(a.info.icon)}" alt="" loading="lazy">
           <div class="name"><span class="tier t${a.tier}" title="OP.GG 評級">${a.tier}</span>${esc(a.info.name)}<span class="rar">${RARITY[a.info.rarity] || ""}</span></div>
           <div class="stats"><div>選用 ${pct(a.pop)}</div><div>表現 ${a.perf.toFixed(1)}</div></div>
           ${desc}</div>`;
-      }).join("");
+      }).join("")}</div>`;
     }
     drawList();
   }
@@ -352,15 +506,27 @@
   }
 
   // ---- 單件裝備（可排序）
+  // 可信勝率：Wilson 信賴區間下限（95%），場數越少扣越多
+  function reliableWin(win, play) {
+    if (!play) return 0;
+    const z = 1.96, n = play, p = win / 100;
+    const den = 1 + z * z / n;
+    const centre = p + z * z / (2 * n);
+    const margin = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n));
+    return Math.max(0, (centre - margin) / den * 100);
+  }
+
   function itemTable(rows, sortKey, sortable) {
-    const head = [["pick", "選用率"], ["win", "勝率"], ["play", "場數"]].map(([k, l]) =>
-      `<th class="${sortable ? "sortable" : ""} ${sortKey === k ? "sorted" : ""}" data-k="${k}">${l}${sortKey === k ? " ▾" : ""}</th>`).join("");
+    const cols = [["pick", "選用率", ""], ["win", "勝率", ""], ...(sortable ? [["lb", "可信勝率", "把場數納入考量的保守勝率（95% 信賴下限）。2 場 100% 會排在 30 場 60% 後面"]] : []), ["play", "場數", ""]];
+    const head = cols.map(([k, l, tip]) =>
+      `<th class="${sortable ? "sortable" : ""} ${sortKey === k ? "sorted" : ""}" data-k="${k}" ${tip ? `title="${tip}"` : ""}>${l}${sortKey === k ? " ▾" : ""}</th>`).join("");
     const maxPick = Math.max(1, ...rows.map(r => r.pick));
     return `<table><thead><tr><th>裝備</th>${head}</tr></thead><tbody>${rows.map(r => `
       <tr class="${r.play < LOW_GAMES ? "dim" : ""}">
         <td><div class="it"><img src="${esc(itemImg(r.id))}" alt="" loading="lazy"><span>${esc(itemName(r.id))}</span></div></td>
         <td class="pick">${pct(r.pick)}<i style="width:${(r.pick / maxPick * 48).toFixed(0)}px"></i></td>
         <td class="${winClass(r.win, r.play)}">${pct(r.win)}</td>
+        ${sortable ? `<td class="lb">${pct(r.lb)}</td>` : ""}
         <td>${r.play}</td></tr>`).join("")}</tbody></table>`;
   }
 
@@ -369,6 +535,7 @@
     const draw = () => {
       const k = settings.itemSort;
       const rows = c.items.filter(r => r.play >= settings.minGames)
+        .map(r => ({ ...r, lb: reliableWin(r.win, r.play) }))
         .sort((a, b) => b[k] - a[k] || b.play - a.play);
       panel.innerHTML = `<h2>單件裝備 <small>點欄位排序</small></h2>
         <div class="toolbar"><label>最少場數

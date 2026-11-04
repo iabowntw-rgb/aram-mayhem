@@ -9,14 +9,20 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="#" title="回到英雄列表">大混戰速查</a>
-    <div class="search-wrap">
-      <input id="search" type="search" autocomplete="off" spellcheck="false"
-             placeholder="搜尋英雄：中文、暱稱或英文（直接打字即可，Enter 開啟）">
-      <ul id="suggest" class="suggest" hidden></ul>
+    <div class="bar">
+      <a class="brand" href="#" title="回到英雄列表">大混戰速查</a>
+      <div class="search-wrap">
+        <input id="search" type="search" autocomplete="off" spellcheck="false"
+               placeholder="搜尋英雄：中文、暱稱或英文（直接打字即可，Enter 開啟）">
+        <ul id="suggest" class="suggest" hidden></ul>
+      </div>
+      <nav id="quick" class="quick" aria-label="常用英雄"></nav>
+      <div id="meta" class="meta"></div>
+      <div class="gear-wrap">
+        <button id="gearBtn" class="btn gear" aria-haspopup="true" aria-expanded="false" title="顯示設定">⚙ 設定</button>
+        <div id="gearPanel" class="gear-panel" hidden></div>
+      </div>
     </div>
-    <nav id="quick" class="quick" aria-label="常用英雄"></nav>
-    <div id="meta" class="meta"></div>
   </header>
   <main id="app"><p class="loading">載入資料中…</p></main>
   <script src="aliases.js"></script>
