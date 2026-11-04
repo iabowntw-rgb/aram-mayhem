@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>大混戰速查</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23c8a24a'/><text x='16' y='23' font-size='19' text-anchor='middle' font-family='sans-serif' font-weight='700' fill='%23111'>混</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#" title="回到英雄列表">大混戰速查</a>
+    <div class="search-wrap">
+      <input id="search" type="search" autocomplete="off" spellcheck="false"
+             placeholder="搜尋英雄：中文、暱稱或英文（直接打字即可，Enter 開啟）">
+      <ul id="suggest" class="suggest" hidden></ul>
+    </div>
+    <nav id="quick" class="quick" aria-label="常用英雄"></nav>
+    <div id="meta" class="meta"></div>
+  </header>
+  <main id="app"><p class="loading">載入資料中…</p></main>
+  <script src="aliases.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
