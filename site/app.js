@@ -14,6 +14,7 @@
     hideRare: true,      // 隱藏選用率 0 的符文
     itemSort: "pick",    // pick | win | play
     minGames: 1,
+    show: { aug: true, item: true, skill: true },
     favs: [],
     recent: [],
   };
@@ -216,6 +217,10 @@
     document.title = `${c.name} · 大混戰速查`;
     const fav = settings.favs.includes(c.key);
     const lowSample = c.sample != null && c.sample < 100;
+    let show = { ...DEFAULTS.show, ...(settings.show || {}) };
+    if (!pickLayout(show)) show = { ...DEFAULTS.show }; // 全關時恢復預設
+    const count = SECTIONS.filter(([k]) => show[k]).length;
+    const layout = pickLayout(show);
     app.innerHTML = `<section class="champ">
       <div class="champ-head">
         <img src="${esc(c.image)}" alt="">
@@ -228,31 +233,63 @@
           </div>
         </div>
         <div class="spacer"></div>
+        <div class="toggles" role="group" aria-label="顯示的區塊">${SECTIONS.map(([k, l]) => {
+          const on = show[k];
+          const last = on && count === 1;
+          return `<button class="btn tog ${on ? "on" : ""}" data-sec="${k}" aria-pressed="${on}" ${last ? `disabled title="至少要保留一個區塊"` : ""}>${l}</button>`;
+        }).join("")}</div>
         <button class="btn ${fav ? "on" : ""}" id="favBtn">${fav ? "★ 已收藏" : "☆ 收藏"}</button>
         <a class="btn" href="https://op.gg/zh-tw/lol/modes/aram-mayhem/${encodeURIComponent(c.key)}/build" target="_blank" rel="noopener">OP.GG ↗</a>
       </div>
-      <div class="cols">
-        <div class="col c1"><div class="panel grow" id="augPanel"></div></div>
-        <div class="col c2">
-          <div class="panel" id="corePanel"></div>
-          <div class="panel" id="itemPanel"></div>
-        </div>
-        <div class="col c3">
-          <div class="panel" id="skillPanel"></div>
-          <div class="panel" id="bootPanel"></div>
-          <div class="panel" id="starterPanel"></div>
-        </div>
+      <div class="cols ${layout.cls}" style="--cols:${layout.cols.map(col => `minmax(0,${col.fr}fr)`).join(" ")}">
+        ${layout.cols.map(col => `<div class="col">${col.panels.map(p => PANEL_HTML[p]).join("")}</div>`).join("")}
       </div></section>`;
     $("#favBtn").onclick = () => {
       settings.favs = fav ? settings.favs.filter(k => k !== c.key) : [...settings.favs, c.key];
       save(); renderChamp(c); renderQuick();
     };
-    renderAugments(c);
-    renderCore(c);
-    renderItems(c);
-    renderSkills(c);
-    renderBoots(c);
-    renderStarters(c);
+    app.querySelectorAll(".tog").forEach(b => b.onclick = () => {
+      settings.show = { ...show, [b.dataset.sec]: !show[b.dataset.sec] };
+      save(); renderChamp(c);
+    });
+    if (show.aug) renderAugments(c);
+    if (show.item) { renderCore(c); renderItems(c); renderBoots(c); renderStarters(c); }
+    if (show.skill) renderSkills(c);
+  }
+
+  // ---------------- 區塊開關與版面
+  const SECTIONS = [["aug", "強化符文"], ["item", "裝備"], ["skill", "技能點法"]];
+  const PANEL_HTML = {
+    aug: `<div class="panel grow" id="augPanel"></div>`,
+    core: `<div class="panel" id="corePanel"></div>`,
+    items: `<div class="panel" id="itemPanel"></div>`,
+    boots: `<div class="panel" id="bootPanel"></div>`,
+    starters: `<div class="panel" id="starterPanel"></div>`,
+    skill: `<div class="panel" id="skillPanel"></div>`,
+  };
+
+  // 依開啟的區塊決定欄數、比例與每欄放哪些面板
+  function pickLayout(show) {
+    const col = (fr, ...panels) => ({ fr, panels });
+    const key = SECTIONS.filter(([k]) => show[k]).map(([k]) => k).join("+");
+    switch (key) {
+      case "aug+item+skill":
+        return { cls: "n3", cols: [col(1.35, "aug"), col(1, "core", "items"), col(0.9, "skill", "boots", "starters")] };
+      case "aug+item":
+        return { cls: "n2", cols: [col(1.5, "aug"), col(1, "core", "items", "boots", "starters")] };
+      case "aug+skill":
+        return { cls: "n2", cols: [col(1.5, "aug"), col(1, "skill")] };
+      case "item+skill":
+        return { cls: "n2", cols: [col(1.2, "core", "items"), col(1, "skill", "boots", "starters")] };
+      case "aug":
+        return { cls: "n1 solo-aug", cols: [col(1, "aug")] };
+      case "item":
+        return { cls: "n1 solo-item", cols: [col(1.2, "items"), col(1, "core", "boots", "starters")] };
+      case "skill":
+        return { cls: "n1 solo-skill", cols: [col(1, "skill")] };
+      default:
+        return null;
+    }
   }
 
   // ---- 強化符文
@@ -368,7 +405,7 @@
       return `<div class="lv">${cells}</div>`;
     };
     const ms = c.skills.masteries.slice(0, 3);
-    $("#skillPanel").innerHTML = `<h2>技能點法 <small>主升順序</small></h2><div class="panel-body">${
+    $("#skillPanel").innerHTML = `<h2>技能點法 <small>主升順序</small></h2><div class="panel-body masts">${
       ms.length ? ms.map(m => {
         const top = m.builds[0];
         return `<div class="mast">

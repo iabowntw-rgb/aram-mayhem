@@ -111,11 +111,28 @@ main { flex: 1; min-height: 0; }
 .btn.on { color: var(--gold); border-color: var(--gold); }
 .warn { color: #ffcc66; }
 
+.toggles { display: inline-flex; gap: 4px; padding-right: 8px; margin-right: 4px; border-right: 1px solid var(--line); }
+.btn.tog { color: var(--muted); }
+.btn.tog.on { color: var(--text); border-color: var(--accent); background: #22304a; }
+.btn.tog:disabled { cursor: not-allowed; opacity: .75; }
+
 .cols {
-  flex: 1; min-height: 0;
+  flex: 1; min-height: 0; width: 100%; max-width: 1880px; margin: 0 auto;
   display: grid; gap: 12px; padding: 12px 16px;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, .9fr);
+  grid-template-columns: var(--cols);
 }
+/* 只開一個區塊：改用適合寬畫面的排法 */
+.solo-aug #augList { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 8px; align-content: start; }
+.solo-aug .aug { border: 1px solid #262b37; border-radius: 6px; background: var(--panel-2); padding: 8px 10px; align-content: start; }
+.solo-aug .aug:last-child { border-bottom: 1px solid #262b37; }
+.solo-skill .masts { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 12px; padding: 12px; }
+.solo-skill .mast { border: 1px solid #262b37; border-radius: 6px; background: var(--panel-2); padding: 10px 12px; }
+.solo-skill .lv { gap: 3px; font-size: 13px; }
+.solo-skill .lv div { height: 26px; }
+.solo-skill .mast-head img { width: 36px; height: 36px; }
+.solo-item .it img { width: 36px; height: 36px; }
+.solo-item td { padding: 6px 8px; }
+.solo-item .pick i { height: 3px; }
 .col { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: auto; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
 .panel.grow { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -210,16 +227,17 @@ tr.dim td { opacity: .45; }
 .empty { color: var(--muted); padding: 10px 0; font-size: 13px; }
 .note { color: var(--faint); font-size: 12px; padding: 6px 12px 10px; }
 
-@media (max-width: 1280px) {
-  .cols { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
-  .col.c3 { grid-column: 1 / -1; }
+@media (max-width: 1100px) {
+  .cols { grid-template-columns: minmax(0, 1fr); }
   .champ { height: auto; }
   .col { overflow: visible; }
   main { overflow: auto; }
   .panel.grow .panel-body { max-height: 80vh; }
+  .champ-head { flex-wrap: wrap; }
 }
 @media (max-width: 780px) {
-  .cols { grid-template-columns: minmax(0, 1fr); padding: 12px; }
+  .cols { padding: 12px; }
+  .solo-aug #augList, .solo-skill .masts { grid-template-columns: minmax(0, 1fr); }
   .topbar { padding: 10px 12px; }
   .meta { display: none; }
 }
